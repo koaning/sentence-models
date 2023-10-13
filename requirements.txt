@@ -1,0 +1,4 @@
+lazylines
+spacy
+embetter[sbert]
+keras-core
