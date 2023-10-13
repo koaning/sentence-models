@@ -1,9 +1,12 @@
-from typing import List 
+from typing import List, Dict
+from pathlib import Path
 
+import spacy
 from spacy.language import Language
 from sklearn.base import ClassifierMixin, clone
 from sklearn.linear_model import LogisticRegression
 from lazylines import read_jsonl, LazyLines
+from embetter.text import SentenceEncoder
 
 from .types import Example 
 
@@ -11,24 +14,25 @@ from .types import Example
 
 
 class SentenceModel:
-    def __init__(self, encoder, clf_head: ClassifierMixin=LogisticRegression(class_weight="balanced"), spacy_model: str="en_core_web_sm"):
+    def __init__(self, encoder=SentenceEncoder(), clf_head: ClassifierMixin=LogisticRegression(class_weight="balanced"), spacy_model: str="en_core_web_sm"):
         self.encoder = encoder
         self.clf_head = clf_head
         self.spacy_model = spacy_model if isinstance(spacy_model, Language) else spacy.load(spacy_model, disable=["ner", "lemmatizer", "tagger"])
         self.classifiers = {}
     
     def _prepare_stream(self, stream):
-        lines = LazyLines(stream).map(lambda d: Exampe(**d))
+        lines = LazyLines(stream).map(lambda d: Example(**d))
         lines_orig, lines_new = lines.tee()
-        labels = {ex for ex in lines_orig for lab in ex.keys()}
+        labels = {lab for ex in lines_orig for lab in ex.target.keys()}
         
         mapper = {}
         for ex in lines_new:
             if ex.text not in mapper:
                 mapper[ex.text] = {}
-            if ex.target in mapper[ex.text]:
-                print("WARNING! Duplicate example found: ", ex.text, ex.target)
-            mapper[ex.text][ex.target] = ex.label
+            for lab in ex.target.keys():
+                if lab in mapper[ex.text]:
+                    print("WARNING! Duplicate example found: ", ex.text, ex.target)
+                mapper[ex.text][lab] = ex.target[lab]
         return labels, mapper
 
     def learn(self, generator):
@@ -37,6 +41,7 @@ class SentenceModel:
         for lab, clf in self.classifiers.items():
             texts = [text for text, targets in mapper.items() if lab in targets]
             labels = [mapper[text][lab] for text in texts]
+            print(f"{texts=} {labels=}")
             X = self.encode(texts)
             clf.fit(X, labels)
         return self
@@ -54,10 +59,10 @@ class SentenceModel:
     def __call__(self, text):
         result = {"text": text}
         sents = list(self._to_sentences(text))
-        result["sentences"] = [{"sentence": sent} for sent in sents}]
+        result["sentences"] = [{"sentence": sent, "cats": {}} for sent in sents]
         X = self.encode(sents)
-        for lab, clf self.classifiers.items(): 
+        for lab, clf in self.classifiers.items(): 
             probas = clf.predict_proba(X)[:, 1]
             for i, proba in enumerate(probas):
-                result["sentences"][i][lab] = float(proba)
+                result["sentences"][i]['cats'][lab] = float(proba)
         return result
