@@ -1,34 +1,17 @@
-site_name: My Docs
+site_name: Sentence Models
 theme:
   name: material
-plugins:
-- mkdocstrings:
-    handlers:
-      python:
-        options:
-          extensions:
-          - griffe_typingdoc
-          show_root_heading: true
-          show_if_no_docstring: true
-          inherited_members: true
-          members_order: source
-          separate_signature: true
-          unwrap_annotated: true
-          filters: ["!^_"]
-          merge_init_into_class: true
-          docstring_section_style: spacy
-          signature_crossrefs: true
-          show_symbol_type_heading: true
-          show_symbol_type_toc: true
+  palette:
+    primary: white
+  font:
+    text: Roboto Mono
+    code: Roboto Mono
+  icon:
+    logo: fontawesome/solid/envelope-open-text
+  features:
+    - content.code.copy
+plugins: []
 markdown_extensions:
-  toc:
-    permalink: true
-  markdown.extensions.codehilite:
-    guess_lang: false
-  mdx_include:
-    base_path: docs
-  admonition: null
-  codehilite: null
-  extra: null
-  attr_list: null
-  md_in_html: null
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences

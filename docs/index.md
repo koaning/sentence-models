@@ -1,6 +1,14 @@
+---
+hide:
+  - navigation
+---
+
+
 # Sentence Models
 
 > A different take on textcat.
+
+## Quickstart 
 
 This project is all about making text classification models by predicting properties on a sentence level first. 
 
@@ -54,3 +62,5 @@ And the library is set up in such a way that you can add as many labels as you l
 </figure>
 
 This approach isn't state of the art, there's probably a whole bunch of things we can improve. But it does seem like a pragmatic, and understandable, starting point for a lot of text categorisation projects. 
+
+## API
