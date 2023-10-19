@@ -53,6 +53,7 @@ class SentenceModel:
             text: str
             target: Dict[str, bool]
         ```
+        
         """
         labels, mapper = self._prepare_stream(generator)
         self.classifiers = {lab: clone(self.clf_head) for lab in labels}
