@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List
 from pathlib import Path
 
 import spacy
@@ -10,6 +10,7 @@ from embetter.text import SentenceEncoder
 
 from .types import Example
 from .util import console
+from .finetune import ContrastiveFinetuner
 
 
 class SentenceModel:
@@ -41,7 +42,16 @@ class SentenceModel:
     )
     ```
     """
-    def __init__(self, encoder=SentenceEncoder(), clf_head: ClassifierMixin=LogisticRegression(class_weight="balanced"), spacy_model: str="en_core_web_sm", verbose: bool=False):
+    def __init__(self, 
+                 encoder=SentenceEncoder(), 
+                 clf_head: ClassifierMixin=LogisticRegression(class_weight="balanced"), 
+                 spacy_model: str="en_core_web_sm", 
+                 verbose: bool=False, 
+                 finetune: bool = False, 
+                 hidden_dim: int=300, 
+                 n_layers: int=1, 
+                 activation: Optional[str]=None,
+                 epochs:int = 100):
         self.encoder = encoder
         self.clf_head = clf_head
         self.spacy_model = spacy_model if isinstance(spacy_model, Language) else spacy.load(spacy_model, disable=["ner", "lemmatizer", "tagger"])
@@ -49,7 +59,39 @@ class SentenceModel:
         self.verbose = verbose
         if verbose:
             console.log("SentenceModel initialized.")
+        self.finetuner = ContrastiveFinetuner(hidden_dim, n_layers, activation) if finetune else None
     
+    def _generate_finetune_dataset(self, examples):
+        arrays = {}
+        all_labels = {cat for ex in examples for cat in in ex['cats']}
+        for label in all_labels:
+            subset = [ex for ex in examples if label in ex['cats']]
+            texts = [ex['text'] for ex in subset]
+            arrays[label] = encoder.transform(texts)
+
+        def concat_if_exists(main, new):
+            """This function is only used here, so internal"""
+            if main is None:
+                return new
+            return np.concatenate([main, new])
+        
+        X1 = None
+        X2 = None 
+        lab = None
+        for label in all_labels:
+            subset = [ex for ex in examples if label in ex['cats']]
+            labels = [ex['cats'][label] for ex in subset]
+            pairs = generate_pairs_batch(labels)
+            X = arrays[label]
+            X1 = concat_if_exists(X1, np.array([X[p.e1] for p in pairs]))
+            X2 = concat_if_exists(X2, np.array([X[p.e2] for p in pairs]))
+            lab = concat_if_exists(lab, np.array([p.val for p in pairs], dtype=float))
+        return X1, X2, lab
+        
+    def _learn_finetuner(self, examples):
+        X1, X2, lab = self._generate_finetune_dataset(examples)
+        self.finetuner.model_full.fit([X1, X2], lab, epochs=100, verbose=2)
+
     def _prepare_stream(self, stream):
         lines = LazyLines(stream).map(lambda d: Example(**d))
         lines_orig, lines_new = lines.tee()
@@ -67,7 +109,7 @@ class SentenceModel:
             console.log(f"Found {len(mapper)} examples for {len(labels)} labels.")
         return labels, mapper
 
-    def learn(self, generator) -> "SentenceModel":
+    def learn(self, examples: List[Dict]) -> "SentenceModel":
         """
         Learn from a generator of examples. Can update a previously loaded model.
         
@@ -90,7 +132,9 @@ class SentenceModel:
         smod = SentenceModel().learn(some_generator)
         ```
         """
-        labels, mapper = self._prepare_stream(generator)
+        labels, mapper = self._prepare_stream(examples)
+        if self.finetune:
+            self._learn_finetuner(examples)
         self.classifiers = {lab: clone(self.clf_head) for lab in labels}
         for lab, clf in self.classifiers.items():
             texts = [text for text, targets in mapper.items() if lab in targets]
@@ -113,7 +157,7 @@ class SentenceModel:
         smod = SentenceModel().learn_from_disk("path/to/file.jsonl")
         ```
         """
-        return self.learn(read_jsonl(Path(path)))
+        return self.learn(list(read_jsonl(Path(path))))
     
     def _to_sentences(self, text: str):
         for sent in self.spacy_model(text).sents:
@@ -132,7 +176,10 @@ class SentenceModel:
         smod.encode(["example text"])
         ```
         """
-        return self.encoder.transform(texts)
+        X = self.encoder.transform(texts)
+        if self.finetuner:
+            return self.finetuner.encode(X) 
+        return X
 
     def __call__(self, text):
         """
