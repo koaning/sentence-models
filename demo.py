@@ -1,13 +1,23 @@
+import os 
+
+os.environ["KERAS_BACKEND"] = "torch"
+
 from sentence_models import SentenceModel
+from embetter.text import SentenceEncoder
+from sentence_models.finetune import ContrastiveFinetuner
 from sentence_models.util import console
+import srsly 
 
-smod = SentenceModel()
+examples = list(srsly.read_jsonl("data/new-dataset.jsonl")) + list(srsly.read_jsonl("data/data-quality.jsonl"))
+examples = [{"text": ex["text"], "target": ex["cats"]} for ex in examples]
 
-smod.learn([
-    {"text": "hello there", "target": {"greeting": True}}, 
-    {"text": "goodbye there", "target": {"greeting": False}},
-    {"text": "llms are great", "target": {"new-dataset": False, "benchmark": False, "llm": True}},
-    {"text": "this new dataset totally serves as a benchmark", "target": {"new-dataset": True, "benchmark": True, "llm": False}},
-])
+smod = SentenceModel(finetuner=ContrastiveFinetuner())
 
-console.print(smod("Hi there. This is dog. How are you?"))
+smod.learn(examples)
+
+console.print(smod("This new corpus will be very useful in the research of annotator disagreement. But it won't be about llms."))
+
+smod.to_disk("demo")
+smod_reloaded = SentenceModel.from_disk("demo", encoder=SentenceEncoder())
+
+console.print(smod("This new corpus will be very useful in the research of annotator disagreement. But it won't be about llms."))

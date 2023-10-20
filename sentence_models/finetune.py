@@ -1,25 +1,28 @@
+from typing import Optional, List
 import srsly 
 import numpy as np
-import matplotlib.pylab as plt 
-from sklearn.decomposition import PCA 
+from pathlib import Path
 
-from embetter.text import SentenceEncoder
-from embetter.utils import cached
-
-from keras.losses import MeanSquaredError
-from keras.models import Model, Sequential
-from keras.layers import Dense, Input, Lambda, Dot, Flatten
-from keras import backend as K
-from keras.optimizers import Adam
+from keras_core.losses import MeanSquaredError
+from keras_core.models import Model, Sequential, load_model
+from keras_core.layers import Dense, Input, Lambda, Dot, Flatten
+from keras_core import backend as K
+from keras_core.optimizers import Adam
 
 
-def generate_pairs_batch(labels, n_neg=3):
+import random 
+import numpy as np
+from itertools import groupby, chain
+from collections import namedtuple, defaultdict
+
+def generate_pairs_batch(labels: List[str], n_neg:int=3):
     """
     Copied with permission from Peter Baumgartners implementation
     https://github.com/pmbaumgartner/setfit
     """
     # 7x faster than original implementation on small data,
     # 14x faster on 10000 examples
+    Pair = namedtuple('Pair', ['e1', 'e2', 'val'])
     pairs = []
     lookup = defaultdict(list)
     single_example = {}
@@ -47,10 +50,10 @@ def generate_pairs_batch(labels, n_neg=3):
             # we'll reselect the other item in the pair until it's different
             while positive_pair == current_idx:
                 positive_pair = random.choice(lookup[current_label])
-        pairs.append((current_idx, positive_pair, 1))
+        pairs.append(Pair(current_idx, positive_pair, 1))
         for i in range(n_neg):
             negative_pair = random.choice(neg_lookup[current_label])
-            pairs.append((current_idx, negative_pair, 0))
+            pairs.append(Pair(current_idx, negative_pair, 0))
 
     return pairs
 
@@ -63,8 +66,8 @@ def create_base_model(hidden_dim, n_layers, activation, input_shape):
 
 def cosine_similarity(vectors):
     x, y = vectors
-    x = K.l2_normalize(x, axis=-1)
-    y = K.l2_normalize(y, axis=-1)
+    # x = K.l2_normalize(x, axis=-1)
+    # y = K.l2_normalize(y, axis=-1)
     return Dot(axes=-1, normalize=False)([x, y])
 
 def contrastive_loss(y_true, y_pred):
@@ -75,60 +78,43 @@ def contrastive_loss(y_true, y_pred):
 
 
 class ContrastiveFinetuner:
-    def __init__(self, hidden_dim: int=300, n_layers: int=1, activation: Optional[str]=None):
+    def __init__(self, hidden_dim: int=300, n_layers: int=1, activation: Optional[str]=None, epochs=5):
         self.hidden_dim = hidden_dim 
         self.activation = activation
         self.n_layers = n_layers
+        self.epochs = epochs
+        self.model_base = None
+        self.model_full = None
 
     def construct_models(self, X1, X2):
-        shape1 = (X1.shape[1], )
-        shape2 = (X2.shape[1], )
-        self.model_base = create_base_model(self.hidden_dim, self.n_layers, self.activation, shape1)
-        input1 = Input(shape=shape1)
-        input2 = Input(shape=shape2)
-        vector1 = model_base(input1)
-        vector2 = model_base(input2)
-        cosine_sim = Lambda(cosine_similarity)([vector1, vector2])
-        cosine_sim = Flatten()(cosine_sim)
-        self.model_full = Model(inputs=[input1, input2], outputs=cosine_sim)
-        self.model_full.compile(optimizer=Adam(), loss=MeanSquaredError())
+        if not self.model_full:
+            shape1 = (X1.shape[1], )
+            shape2 = (X2.shape[1], )
+            self.model_base = create_base_model(self.hidden_dim, self.n_layers, self.activation, shape1)
+            input1 = Input(shape=shape1)
+            input2 = Input(shape=shape2)
+            vector1 = self.model_base(input1)
+            vector2 = self.model_base(input2)
+            cosine_sim = Lambda(cosine_similarity, output_shape=vector1.shape)([vector1, vector2])
+            cosine_sim = Flatten()(cosine_sim)
+            self.model_full = Model(inputs=[input1, input2], outputs=cosine_sim)
+            self.model_full.compile(optimizer=Adam(), loss=MeanSquaredError())
     
     def to_disk(self, folder: Path):
-        model_full.save(folder / 'model_full.keras')
-        model_base.save(folder / 'model_base.keras')
-        srsly.write_json(folder / "finetuner.json", {"hidden_dim": self.hidden_dim, "n_layers": self.n_layers, "activation": self.activation})
+        self.model_full.save(folder / 'model_full.keras')
+        self.model_base.save(folder / 'model_base.keras')
+        srsly.write_json(folder / "finetuner.json", {n: getattr(self, n) for n in ["hidden_dim", "activation", "n_layers", "epochs"]})
     
     @classmethod
     def from_disk(cls, folder: Path):
         settings = srsly.read_json(folder / "finetuner.json")
         tuner = ContrastiveFinetuner(**settings)
-        tuner.model_full = keras.models.load_model(folder / 'model_full.keras')
-        tuner.model_base = keras.models.load_model(folder / 'model_base.keras')
+        tuner.model_full = load_model(folder / 'model_full.keras')
+        tuner.model_base = load_model(folder / 'model_base.keras')
         return tuner
     
     def encode(self, X):
         return self.model_base.predict(X)
 
-
-dataset = list(srsly.read_jsonl("new-dataset.jsonl"))
-labels = [ex['cats']['new-dataset'] for ex in dataset]
-texts = [ex['text'] for ex in dataset]
-pairs = generate_pairs_batch(labels)
-enc = cached("sbert", SentenceEncoder())
-X = enc.transform(texts)
-
-X1 = np.array([X[0] for ex in pairs])
-X2 = np.array([X[1] for ex in pairs])
-
-# Before
-X_pca = PCA(2).fit_transform(X)
-plt.scatter(X_pca[:,0], X_pca[:,1], c=labels, s=5)
-
-tuner = ContrastiveFinetuner(n_layers=1)
-tuner.construct_model(X1, X2)
-model.fit([X1, X2], np.array([ex[2] for ex in pairs], dtype=float), epochs=100, verbose=2)
-
-# After
-X_pca = PCA(2).fit_transform(enc.predict(X))
-
-plt.scatter(X_pca[:,0], X_pca[:,1], c=labels, s=5)
+    def learn(self, X1, X2, lab):
+        self.model_full.fit([X1, X2], lab, epochs=self.epochs, verbose=2)
