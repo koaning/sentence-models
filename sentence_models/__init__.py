@@ -11,11 +11,37 @@ from embetter.text import SentenceEncoder
 from .types import Example
 from .util import console
 
+
 class SentenceModel:
     """
-    This model will train a classifier head for each label on top of an encoder.
+    **SentenceModel**
+
+    This object represents a model that can apply predictions per sentence.
+
+    **Usage:**
+
+    ```python
+    from sentence_model import SentenceModel
+
+    smod = SentenceModel()
+    ```
+
+    You can customise some of the settings if you like, but it comes with sensible defaults.
+
+    ```python
+    from sentence_model import SentenceModel
+    from embetter.text import SentenceEncoder 
+    from sklearn.linear_model import LogisticRegression
+
+    smod = SentenceModel(
+        encoder=SentenceEncoder(), 
+        clf_head=LogisticRegression(class_weight="balanced"),
+        spacy_model="en_core_web_sm", 
+        verbose=False
+    )
+    ```
     """
-    def __init__(self, encoder=SentenceEncoder(), clf_head: ClassifierMixin=LogisticRegression(class_weight="balanced"), spacy_model: str="en_core_web_sm", verbose=False):
+    def __init__(self, encoder=SentenceEncoder(), clf_head: ClassifierMixin=LogisticRegression(class_weight="balanced"), spacy_model: str="en_core_web_sm", verbose: bool=False):
         self.encoder = encoder
         self.clf_head = clf_head
         self.spacy_model = spacy_model if isinstance(spacy_model, Language) else spacy.load(spacy_model, disable=["ner", "lemmatizer", "tagger"])
@@ -43,7 +69,7 @@ class SentenceModel:
 
     def learn(self, generator) -> "SentenceModel":
         """
-        Learn from a generator of examples.
+        Learn from a generator of examples. Can update a previously loaded model.
         
         Each example should be a dictionary with a "text" key and a "target" key.
         Internally this method checks via this Pydantic model:
@@ -54,6 +80,15 @@ class SentenceModel:
             target: Dict[str, bool]
         ```
         
+        As long as your generator emits dictionaries in this format, all will go well.
+
+        **Usage:**
+
+        ```python
+        from sentence_model import SentenceModel
+
+        smod = SentenceModel().learn(some_generator)
+        ```
         """
         labels, mapper = self._prepare_stream(generator)
         self.classifiers = {lab: clone(self.clf_head) for lab in labels}
@@ -67,19 +102,51 @@ class SentenceModel:
         return self
 
     def learn_from_disk(self, path: Path) -> "SentenceModel":
-        """Load a JSONL file from disk and learn from it"""
-        return self.learn(read_jsonl(path))
+        """
+        Load a JSONL file from disk and learn from it.
+        
+        **Usage:**
+
+        ```python
+        from sentence_model import SentenceModel
+
+        smod = SentenceModel().learn_from_disk("path/to/file.jsonl")
+        ```
+        """
+        return self.learn(read_jsonl(Path(path)))
     
     def _to_sentences(self, text: str):
         for sent in self.spacy_model(text).sents:
             yield sent.text
     
     def encode(self, texts: List[str]):
-        """Encode a list of texts into a matrix of shape (n_texts, n_features)"""
+        """
+        Encode a list of texts into a matrix of shape (n_texts, n_features)
+        
+        **Usage::**
+
+        ```python
+        from sentence_model import SentenceModel
+
+        smod = SentenceModel()
+        smod.encode(["example text"])
+        ```
+        """
         return self.encoder.transform(texts)
 
     def __call__(self, text):
-        """Make a prediction for a single text"""
+        """
+        Make a prediction for a single text.
+        
+        **Usage:**
+
+        ```python
+        from sentence_model import SentenceModel
+
+        smod = SentenceModel().learn_from_disk("path/to/file.jsonl")
+        smod("Predict this. Per sentence!")
+        ```
+        """
         result = {"text": text}
         sents = list(self._to_sentences(text))
         result["sentences"] = [{"sentence": sent, "cats": {}} for sent in sents]

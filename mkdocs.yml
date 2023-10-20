@@ -10,7 +10,9 @@ theme:
     logo: fontawesome/solid/envelope-open-text
   features:
     - content.code.copy
-plugins: []
+plugins:
+  - mkdocstrings:
+      default_handler: python
 markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
