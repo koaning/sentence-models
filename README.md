@@ -1,7 +1,4 @@
----
-hide:
-  - navigation
----
+<img src="docs/highlight.png" width="125" height="125" align="right" />
 
 # Sentence Models
 
@@ -23,11 +20,10 @@ Maybe it makes sense to split the text into sentences and run a classifier on ea
 
 If you have sentence level predictions, you could re-use that to do abstract-level predictions.
 
-![](docs/sentence-model.jpeg)
+![](docs/sentence-model.png)
 
-And the library is set up in such a way that you can add as many labels as you like. We're even able to do some clever fine-tuning tricks internally.
+This approach may not be perfect, but it seemed _so_ much easier to annotate sentences ... that we might also want to model that way. 
 
 ## Documentation 
 
 Did this make you curious? Check out [the docs](https://koaning.github.io/sentence-models/) for a more in-depth quickstart! 
-
