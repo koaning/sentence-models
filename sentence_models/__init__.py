@@ -1,4 +1,5 @@
-from typing import List, Optional, Dict
+import srsly 
+from typing import List, Optional, Dict, Union
 from pathlib import Path
 
 import numpy as np
@@ -180,6 +181,7 @@ class SentenceModel:
         smod.encode(["example text"])
         ```
         """
+        console.log(self.finetuner)
         X = self.encoder.transform(texts)
         if self.finetuner is not None:
             return self.finetuner.encode(X) 
@@ -240,7 +242,7 @@ class SentenceModel:
         srsly.write_json("settings.json", settings)
 
     @classmethod
-    def from_disk(self, folder:Union[str, Path], encoder, spacy_model:str="en_core_web_sm", verbose:bool=False) -> SentenceModel:
+    def from_disk(self, folder:Union[str, Path], encoder, spacy_model:str="en_core_web_sm", verbose:bool=False) -> "SentenceModel":
         """
         Loads a `SentenceModel` from disk.
         
