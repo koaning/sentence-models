@@ -3,7 +3,6 @@ hide:
   - navigation
 ---
 
-
 # Sentence Models
 
 > A different take on textcat.
