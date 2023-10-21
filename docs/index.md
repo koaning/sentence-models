@@ -64,9 +64,7 @@ from sentence_models import SentenceModel
 smod = SentenceModel().learn_from_disk("annotations.jsonl")
 
 # Make a prediction
-example = "In this paper we introduce a new dataset for citrus fruit detection.
-We also contribute a state of the art algorithm."
-
+example = "In this paper we introduce a new dataset for citrus fruit detection. We also contribute a state of the art algorithm."
 smod(example)
 ```
 
