@@ -7,15 +7,18 @@ from keras_core.losses import MeanSquaredError
 from keras_core.models import Model, Sequential, load_model
 from keras_core.layers import Dense, Input, Lambda, Dot, Flatten
 from keras_core import backend as K
+from keras_core import ops
 from keras_core.optimizers import Adam
-
+from keras_core.callbacks import LambdaCallback
 
 import random 
 import numpy as np
 from itertools import groupby, chain
 from collections import namedtuple, defaultdict
+from .util import console
 
-def generate_pairs_batch(labels: List[str], n_neg:int=3):
+
+def generate_pairs_batch(labels: List[str], n_neg:int=2):
     """
     Copied with permission from Peter Baumgartners implementation
     https://github.com/pmbaumgartner/setfit
@@ -60,31 +63,24 @@ def generate_pairs_batch(labels: List[str], n_neg:int=3):
 
 def create_base_model(hidden_dim, n_layers, activation, input_shape):
     model = Sequential()
+    model.add(Input(input_shape))
     for layer in range(n_layers):
-        model.add(Dense(hidden_dim, activation=activation, input_shape=input_shape))
+        model.add(Dense(hidden_dim, activation=activation))
     return model
 
 def cosine_similarity(vectors):
-    x, y = vectors
-    # x = K.l2_normalize(x, axis=-1)
-    # y = K.l2_normalize(y, axis=-1)
-    return Dot(axes=-1, normalize=False)([x, y])
-
-def contrastive_loss(y_true, y_pred):
-    margin = 1.0
-    square_pred = K.square(y_pred)
-    margin_square = K.square(K.maximum(margin - y_pred, 0))
-    return K.mean(y_true * square_pred + (1 - y_true) * margin_square)
+    return Dot(axes=-1, normalize=True)(vectors)
 
 
 class ContrastiveFinetuner:
-    def __init__(self, hidden_dim: int=300, n_layers: int=1, activation: Optional[str]=None, epochs=5):
+    def __init__(self, hidden_dim: int=300, n_layers: int=1, activation: Optional[str]=None, epochs=5, verbose=False):
         self.hidden_dim = hidden_dim 
         self.activation = activation
         self.n_layers = n_layers
         self.epochs = epochs
         self.model_base = None
         self.model_full = None
+        self.verbose = verbose
 
     def construct_models(self, X1, X2):
         if not self.model_full:
@@ -96,14 +92,14 @@ class ContrastiveFinetuner:
             vector1 = self.model_base(input1)
             vector2 = self.model_base(input2)
             cosine_sim = Lambda(cosine_similarity, output_shape=vector1.shape)([vector1, vector2])
-            cosine_sim = Flatten()(cosine_sim)
-            self.model_full = Model(inputs=[input1, input2], outputs=cosine_sim)
+            cosine_sim_flat = Flatten()(cosine_sim)
+            self.model_full = Model(inputs=[input1, input2], outputs=cosine_sim_flat)
             self.model_full.compile(optimizer=Adam(), loss=MeanSquaredError())
     
     def to_disk(self, folder: Path):
         self.model_full.save(folder / 'model_full.keras')
         self.model_base.save(folder / 'model_base.keras')
-        srsly.write_json(folder / "finetuner.json", {n: getattr(self, n) for n in ["hidden_dim", "activation", "n_layers", "epochs"]})
+        srsly.write_json(folder / "finetuner.json", {n: getattr(self, n) for n in ["hidden_dim", "activation", "n_layers", "epochs", "verbose"]})
     
     @classmethod
     def from_disk(cls, folder: Path):
@@ -114,7 +110,13 @@ class ContrastiveFinetuner:
         return tuner
     
     def encode(self, X):
-        return self.model_base.predict(X)
+        return self.model_base.predict(X, verbose=0)
 
     def learn(self, X1, X2, lab):
-        self.model_full.fit([X1, X2], lab, epochs=self.epochs, verbose=2)
+        callbacks = []
+        if self.verbose:
+            console.log("Finetuner starts training.")
+            callbacks = [LambdaCallback(on_epoch_end=lambda epoch, logs: console.log(f"Iteration completed {epoch=} loss={logs['loss']}"))]
+        self.model_full.fit([X1, X2], lab, epochs=self.epochs, verbose=0, callbacks=callbacks)
+        if self.verbose:
+            console.log("Finetuner training done.")
