@@ -4,6 +4,29 @@
 
 > A different take on textcat.
 
+## Quickstart 
+
+You can install this tool via: 
+
+```
+python -m pip install sentence-models 
+```
+
+Then from there you can train a sentence model and apply it via: 
+
+```python
+from sentence_models import SentenceModel
+
+# Learn a new sentence-model. This `.jsonl` data needs to be in the right format.
+smod = SentenceModel().learn_from_disk("annotations.jsonl")
+
+# Make a prediction
+example = "In this paper we introduce a new dataset for citrus fruit detection. We also contribute a state of the art algorithm."
+smod(example)
+```
+
+To learn more about the expected data format of a sentence-model, check [the docs](https://koaning.github.io/sentence-models/).
+
 ## Why sentence models? 
 
 I was working on a project that tries to detect topics in academic articles found on arxiv. One of the topics I was interested in was "new datasets". If an article presents a new dataset there's usually something interesting happening so I wanted to build a classifier for it. 
