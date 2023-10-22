@@ -13,7 +13,6 @@ from skops.io import dump, load
 
 from .types import Example, SentencePrediction
 from .util import console
-from .finetune import ContrastiveFinetuner, generate_pairs_batch
 
 
 class SentenceModel:
@@ -50,7 +49,7 @@ class SentenceModel:
                  clf_head: ClassifierMixin=LogisticRegression(class_weight="balanced"), 
                  spacy_model: str="en_core_web_sm", 
                  verbose: bool=False, 
-                 finetuner: Optional[ContrastiveFinetuner] = None
+                 finetuner = None
         ):
         self.encoder = encoder
         self.clf_head = clf_head
@@ -61,43 +60,44 @@ class SentenceModel:
             console.log("SentenceModel initialized.")
         self.finetuner = finetuner
     
-    def _generate_finetune_dataset(self, examples):
-        if self.verbose:
-            console.log("Generating pairs for finetuning.")
-        all_labels = {cat for ex in examples for cat in ex['target'].keys()}
+    # TODO: add support for finetuners
+    # def _generate_finetune_dataset(self, examples):
+    #     if self.verbose:
+    #         console.log("Generating pairs for finetuning.")
+    #     all_labels = {cat for ex in examples for cat in ex['target'].keys()}
 
-        # Calculating embeddings is usually expensive so only run this once
-        arrays = {}
-        for label in all_labels:
-            subset = [ex for ex in examples if label in ex['target'].keys()]
-            texts = [ex['text'] for ex in subset]
-            arrays[label] = self.encoder.transform(texts)
+    #     # Calculating embeddings is usually expensive so only run this once
+    #     arrays = {}
+    #     for label in all_labels:
+    #         subset = [ex for ex in examples if label in ex['target'].keys()]
+    #         texts = [ex['text'] for ex in subset]
+    #         arrays[label] = self.encoder.transform(texts)
 
-        def concat_if_exists(main, new):
-            """This function is only used here, so internal"""
-            if main is None:
-                return new
-            return np.concatenate([main, new])
+    #     def concat_if_exists(main, new):
+    #         """This function is only used here, so internal"""
+    #         if main is None:
+    #             return new
+    #         return np.concatenate([main, new])
         
-        X1 = None
-        X2 = None
-        lab = None
-        for label in all_labels:
-            subset = [ex for ex in examples if label in ex['target'].keys()]
-            labels = [ex['target'][label] for ex in subset]
-            pairs = generate_pairs_batch(labels)
-            X = arrays[label]
-            X1 = concat_if_exists(X1, np.array([X[p.e1] for p in pairs]))
-            X2 = concat_if_exists(X2, np.array([X[p.e2] for p in pairs]))
-            lab = concat_if_exists(lab, np.array([p.val for p in pairs], dtype=float))
-        if self.verbose:
-            console.log(f"Generated {len(lab)} pairs for contrastive finetuning.")
-        return X1, X2, lab
+    #     X1 = None
+    #     X2 = None
+    #     lab = None
+    #     for label in all_labels:
+    #         subset = [ex for ex in examples if label in ex['target'].keys()]
+    #         labels = [ex['target'][label] for ex in subset]
+    #         pairs = generate_pairs_batch(labels)
+    #         X = arrays[label]
+    #         X1 = concat_if_exists(X1, np.array([X[p.e1] for p in pairs]))
+    #         X2 = concat_if_exists(X2, np.array([X[p.e2] for p in pairs]))
+    #         lab = concat_if_exists(lab, np.array([p.val for p in pairs], dtype=float))
+    #     if self.verbose:
+    #         console.log(f"Generated {len(lab)} pairs for contrastive finetuning.")
+    #     return X1, X2, lab
         
-    def _learn_finetuner(self, examples):
-        X1, X2, lab = self._generate_finetune_dataset(examples)
-        self.finetuner.construct_models(X1, X2)
-        self.finetuner.learn(X1, X2, lab)
+    # def _learn_finetuner(self, examples):
+    #     X1, X2, lab = self._generate_finetune_dataset(examples)
+    #     self.finetuner.construct_models(X1, X2)
+    #     self.finetuner.learn(X1, X2, lab)
 
     def _prepare_stream(self, stream):
         lines = LazyLines(stream).map(lambda d: Example(**d))
@@ -138,8 +138,8 @@ class SentenceModel:
         ```
         """
         labels, mapper = self._prepare_stream(examples)
-        if self.finetuner is not None:
-            self._learn_finetuner([{"text": k, "target": v} for k, v in mapper.items()])
+        # if self.finetuner is not None:
+        #     self._learn_finetuner([{"text": k, "target": v} for k, v in mapper.items()])
         self.classifiers = {lab: clone(self.clf_head) for lab in labels}
         for lab, clf in self.classifiers.items():
             texts = [text for text, targets in mapper.items() if lab in targets]
@@ -261,6 +261,7 @@ class SentenceModel:
         """
         folder = Path(folder)
         keras_files = set(str(s) for s in folder.glob("*.keras"))
+        print(keras_files)
         models = {p.parts[-1].replace(".skops", ""): load(p, trusted=True) for p in folder.glob("*.skops")}
         settings = srsly.read_json("settings.json")
         assert str(encoder) == settings["encoder_str"], f"The encoder at time of saving ({settings['encoder_str']}) differs from this one ({encoder})."
@@ -269,7 +270,7 @@ class SentenceModel:
             clf_head=list(models.values())[0], 
             spacy_model=spacy_model, 
             verbose=verbose, 
-            finetuner=ContrastiveFinetuner.from_disk(folder) if 'model_full.keras' in keras_files else None
+            finetuner=None
         )
         smod.classifiers = models
         return smod

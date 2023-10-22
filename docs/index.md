@@ -132,22 +132,3 @@ This is the main object that you'll interact with.
     options:
         heading_level: 4
         show_symbol_type_toc: true
-
-### ContrastiveFinetuner 
-
-You probably won't be interacting with this directly, unless you feel like geeking out over ML details. This finetuner is similar to [setfit](https://github.com/huggingface/setfit) but it can work on general embeddings, not just the ones from [SentenceTransformers](https://sbert.net/). It also easily allows for non-exclusive classification problems. 
-
-<figure>
-    <div style="">
-        <img src="multiheads.png" width="100%">
-    </div>
-    <figcaption style="text-color: gray; margin-left: auto; margin-right: auto; text-align:center; "><small>This is where the finetuner fits in.</small></figcaption>
-</figure>
-
-You can explore the implementation by checking the source code below. 
-
-::: sentence_models.finetune.ContrastiveFinetuner
-    handler: python
-    options:
-        heading_level: 4
-        show_symbol_type_toc: true
