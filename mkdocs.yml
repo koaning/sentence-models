@@ -1,4 +1,7 @@
 site_name: Sentence Models
+site_description: A slightly different take on textcat.
+site_copy: SentenceModels give you models that make a prediction per sentence in a document. This might be easier to annotate and model, so we made a convenient API for it.
+repo_url: https://github.com/koaning/sentence-models
 theme:
   name: material
   palette:
