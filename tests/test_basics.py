@@ -1,19 +1,10 @@
-"""
-This is a main smoke-test.
-"""
+from sentence_models import SentenceModel
+from embetter.text import SentenceEncoder
+from sentence_models.util import console
+import srsly 
 
 def test_smoke():
-    import os 
-
-    os.environ["KERAS_BACKEND"] = "torch"
-
-    from sentence_models import SentenceModel
-    from embetter.text import SentenceEncoder
-    from sentence_models.util import console
-    import srsly 
-
-
-    examples = list(srsly.read_jsonl("data/new-dataset.jsonl")) + list(srsly.read_jsonl("data/data-quality.jsonl"))
+    examples = list(srsly.read_jsonl("datasets/new-dataset.jsonl")) + list(srsly.read_jsonl("datasets/data-quality.jsonl"))
     examples = [{"text": ex["text"], "target": ex["cats"]} for ex in examples]
 
     smod = SentenceModel(encoder=SentenceEncoder(), verbose=True)
