@@ -3,7 +3,6 @@ hide:
   - navigation
 ---
 
-
 # Sentence Models
 
 > A different take on textcat.
@@ -65,9 +64,7 @@ from sentence_models import SentenceModel
 smod = SentenceModel().learn_from_disk("annotations.jsonl")
 
 # Make a prediction
-example = "In this paper we introduce a new dataset for citrus fruit detection.
-We also contribute a state of the art algorithm."
-
+example = "In this paper we introduce a new dataset for citrus fruit detection. We also contribute a state of the art algorithm."
 smod(example)
 ```
 
@@ -126,7 +123,12 @@ Note that you _don't need to have all labels available in each example_. That's 
 
 ## API
 
+### SentenceModel 
+
+This is the main object that you'll interact with. 
+
 ::: sentence_models.SentenceModel
     handler: python
     options:
-        heading_level: 3
+        heading_level: 4
+        show_symbol_type_toc: true
