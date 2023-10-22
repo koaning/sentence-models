@@ -5,7 +5,7 @@ setup(
     version='0.0.1',
     packages=find_packages(),
     install_requires=[
-        'scikit-learn', 'spacy', 'lazylines', 'embetter[sentence-tfm]', 'keras-core'
+        'scikit-learn', 'spacy', 'lazylines', 'embetter[sentence-tfm]', 'skops'
     ],
     python_requires='>=3.6',
 )
