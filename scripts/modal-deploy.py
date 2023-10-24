@@ -11,7 +11,7 @@ image =modal.Image.debian_slim(python_version="3.10").run_commands(
     "apt-get install -y software-properties-common",
     "apt-add-repository non-free",
     "apt-add-repository contrib",
-    "pip install sentence-models",
+    "pip install sentence-models>=0.1.1",
     "python -m spacy download en_core_web_sm",
 )
 stub = modal.Stub("sentence-model-demo-hash", image=image)
