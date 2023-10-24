@@ -1,8 +1,7 @@
 import srsly 
-from typing import List, Optional, Dict, Union
+from typing import List, Dict, Union
 from pathlib import Path
 
-import numpy as np
 import spacy
 from spacy.language import Language
 from sklearn.base import ClassifierMixin, clone, TransformerMixin
@@ -10,7 +9,7 @@ from sklearn.linear_model import LogisticRegression
 from lazylines import read_jsonl, LazyLines
 from skops.io import dump, load
 
-from .types import Example, SentencePrediction
+from .types import Example
 from .util import console
 
 
