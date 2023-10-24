@@ -241,6 +241,9 @@ class SentenceModel:
             "encoder_str": str(self.encoder)
         }
         srsly.write_json(folder / "settings.json", settings)
+    
+    def __repr__(self):
+        return f"SentenceModel(encoder={self.encoder}, heads={list(self.classifiers.keys())})"
 
     @classmethod
     def from_disk(self, folder:Union[str, Path], encoder, spacy_model:str="en_core_web_sm", verbose:bool=False) -> "SentenceModel":
