@@ -5,10 +5,9 @@ from pathlib import Path
 import numpy as np
 import spacy
 from spacy.language import Language
-from sklearn.base import ClassifierMixin, clone
+from sklearn.base import ClassifierMixin, clone, TransformerMixin
 from sklearn.linear_model import LogisticRegression
 from lazylines import read_jsonl, LazyLines
-from embetter.text import SentenceEncoder
 from skops.io import dump, load
 
 from .types import Example, SentencePrediction
@@ -44,22 +43,22 @@ class SentenceModel:
     )
     ```
     """
-    def __init__(self, 
-                 encoder=SentenceEncoder(), 
-                 clf_head: ClassifierMixin=LogisticRegression(class_weight="balanced"), 
-                 spacy_model: str="en_core_web_sm", 
-                 verbose: bool=False, 
+    def __init__(self,
+                 encoder: TransformerMixin,
+                 clf_head: ClassifierMixin = LogisticRegression(class_weight="balanced"),
+                 spacy_model: str = "en_core_web_sm",
+                 verbose: bool = False,
                  finetuner = None
-        ):
+                 ):
         self.encoder = encoder
         self.clf_head = clf_head
         self.spacy_model = spacy_model if isinstance(spacy_model, Language) else spacy.load(spacy_model, disable=["ner", "lemmatizer", "tagger"])
         self.classifiers = {}
         self.verbose = verbose
         self.finetuner = finetuner
-        self.log("{self} initialized.")
+        self.log("SentenceModel initialized.")
     
-    def log(self, msg):
+    def log(self, msg: str) -> None:
         if self.verbose:
             console.log(msg)
     
@@ -230,6 +229,7 @@ class SentenceModel:
         smod.to_disk("path/to/model")
         ```
         """
+        self.log(f"Storing {self}.")
         folder = Path(folder)
         folder.mkdir(exist_ok=True, parents=True)
         for name, clf in self.classifiers.items():
@@ -241,12 +241,13 @@ class SentenceModel:
             "encoder_str": str(self.encoder)
         }
         srsly.write_json(folder / "settings.json", settings)
+        self.log(f"Model stored in {folder}.")
     
     def __repr__(self):
         return f"SentenceModel(encoder={self.encoder}, heads={list(self.classifiers.keys())})"
 
     @classmethod
-    def from_disk(self, folder:Union[str, Path], encoder, spacy_model:str="en_core_web_sm", verbose:bool=False) -> "SentenceModel":
+    def from_disk(cls, folder:Union[str, Path], encoder, spacy_model:str="en_core_web_sm", verbose:bool=False) -> "SentenceModel":
         """
         Loads a `SentenceModel` from disk.
         
@@ -264,7 +265,6 @@ class SentenceModel:
         ```
         """
         folder = Path(folder)
-        self.log(f"Loading from {folder=}")
         models = {p.parts[-1].replace(".skops", ""): load(p, trusted=True) for p in folder.glob("*.skops")}
         if len(models) == 0:
             raise ValueError(f"Did not find any `.skops` files in {folder}. Are you sure folder is correct?")
