@@ -181,7 +181,8 @@ class SentenceModel:
         smod.encode(["example text"])
         ```
         """
-        console.log(self.finetuner)
+        if self.finetuner:
+            console.log(self.finetuner)
         X = self.encoder.transform(texts)
         if self.finetuner is not None:
             return self.finetuner.encode(X) 
@@ -239,7 +240,7 @@ class SentenceModel:
         settings = {
             "encoder_str": str(self.encoder)
         }
-        srsly.write_json("settings.json", settings)
+        srsly.write_json(folder / "settings.json", settings)
 
     @classmethod
     def from_disk(self, folder:Union[str, Path], encoder, spacy_model:str="en_core_web_sm", verbose:bool=False) -> "SentenceModel":
@@ -260,10 +261,10 @@ class SentenceModel:
         ```
         """
         folder = Path(folder)
-        keras_files = set(str(s) for s in folder.glob("*.keras"))
-        print(keras_files)
         models = {p.parts[-1].replace(".skops", ""): load(p, trusted=True) for p in folder.glob("*.skops")}
-        settings = srsly.read_json("settings.json")
+        if len(models) == 0:
+            raise ValueError(f"Did not find any `.skops` files in {folder}. Are you sure folder is correct?")
+        settings = srsly.read_json(folder / "settings.json")
         assert str(encoder) == settings["encoder_str"], f"The encoder at time of saving ({settings['encoder_str']}) differs from this one ({encoder})."
         smod = SentenceModel(
             encoder=encoder,
