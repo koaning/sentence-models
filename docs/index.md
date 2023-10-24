@@ -59,9 +59,11 @@ This project is all about making text classification models by predicting proper
 
 ```python
 from sentence_models import SentenceModel
+from sklearn.feature_extraction.text import HashingVectorizer
 
-# Learn a new sentence-model
-smod = SentenceModel().learn_from_disk("annotations.jsonl")
+# Learn a new sentence-model using a stateless encoder.
+encoder = HashingVectorizer()
+smod = SentenceModel(encoder=encoder).learn_from_disk("annotations.jsonl")
 
 # Make a prediction
 example = "In this paper we introduce a new dataset for citrus fruit detection. We also contribute a state of the art algorithm."
@@ -120,6 +122,20 @@ That means that an example like below would work:
 
 Note that you _don't need to have all labels available in each example_. That's a feature! Typically when you're annotating it's a lot simpler to just annotate one label at a time and it's perfectly fine if you have examples annotated that don't contain _all_ the labels that you are interested in.
 
+### Embedding models 
+
+You might prefer to use pretrained embedding models as an encoder in our setup. For this, you may prefer
+to use the [Embetter](https://github.com/koaning/embetter) library. This library supports many embedding
+techniques and makes sure that they all adhere to the scikit-learn API. If you want to use the popular
+[sentence-transformers](https://sbert.net) library, you can use the following snippet.
+
+```python
+from sentence_models import SentenceModel
+from embetter.text import SentenceEncoder
+
+# Learn a new sentence-model using a stateless encoder from sentence-transformers.
+smod = SentenceModel(encoder=SentenceEncoder())
+```
 
 ## API
 
