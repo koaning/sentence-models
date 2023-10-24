@@ -1,17 +1,15 @@
 import srsly 
-from typing import List, Optional, Dict, Union
+from typing import List, Dict, Union
 from pathlib import Path
 
-import numpy as np
 import spacy
 from spacy.language import Language
-from sklearn.base import ClassifierMixin, clone
+from sklearn.base import ClassifierMixin, clone, TransformerMixin
 from sklearn.linear_model import LogisticRegression
 from lazylines import read_jsonl, LazyLines
-from embetter.text import SentenceEncoder
 from skops.io import dump, load
 
-from .types import Example, SentencePrediction
+from .types import Example
 from .util import console
 
 
@@ -44,21 +42,24 @@ class SentenceModel:
     )
     ```
     """
-    def __init__(self, 
-                 encoder=SentenceEncoder(), 
-                 clf_head: ClassifierMixin=LogisticRegression(class_weight="balanced"), 
-                 spacy_model: str="en_core_web_sm", 
-                 verbose: bool=False, 
+    def __init__(self,
+                 encoder: TransformerMixin,
+                 clf_head: ClassifierMixin = LogisticRegression(class_weight="balanced"),
+                 spacy_model: str = "en_core_web_sm",
+                 verbose: bool = False,
                  finetuner = None
-        ):
+                 ):
         self.encoder = encoder
         self.clf_head = clf_head
         self.spacy_model = spacy_model if isinstance(spacy_model, Language) else spacy.load(spacy_model, disable=["ner", "lemmatizer", "tagger"])
         self.classifiers = {}
         self.verbose = verbose
-        if verbose:
-            console.log("SentenceModel initialized.")
         self.finetuner = finetuner
+        self.log("SentenceModel initialized.")
+    
+    def log(self, msg: str) -> None:
+        if self.verbose:
+            console.log(msg)
     
     # TODO: add support for finetuners
     # def _generate_finetune_dataset(self, examples):
@@ -110,8 +111,7 @@ class SentenceModel:
                 mapper[ex.text] = {}
             for lab in ex.target.keys():
                 mapper[ex.text][lab] = ex.target[lab]
-        if self.verbose:
-            console.log(f"Found {len(mapper)} examples for {len(labels)} labels.")
+        self.log(f"Found {len(mapper)} examples for {len(labels)} labels.")
         return labels, mapper
 
     def learn(self, examples: List[Dict]) -> "SentenceModel":
@@ -146,8 +146,7 @@ class SentenceModel:
             labels = [mapper[text][lab] for text in texts]
             X = self.encode(texts)
             clf.fit(X, labels)
-            if self.verbose:
-                console.log(f"Trained classifier head for {lab=}")
+            self.log(f"Trained classifier head for {lab=}")
         return self
 
     def learn_from_disk(self, path: Path) -> "SentenceModel":
@@ -181,7 +180,8 @@ class SentenceModel:
         smod.encode(["example text"])
         ```
         """
-        console.log(self.finetuner)
+        if self.finetuner:
+            console.log(self.finetuner)
         X = self.encoder.transform(texts)
         if self.finetuner is not None:
             return self.finetuner.encode(X) 
@@ -228,21 +228,25 @@ class SentenceModel:
         smod.to_disk("path/to/model")
         ```
         """
+        self.log(f"Storing {self}.")
         folder = Path(folder)
         folder.mkdir(exist_ok=True, parents=True)
         for name, clf in self.classifiers.items():
-            if self.verbose:
-                console.log(f"Writing to disk {folder}/{name}.skops")
+            self.log(f"Writing to disk {folder}/{name}.skops")
             dump(clf, folder / f"{name}.skops")
         if self.finetuner is not None:
             self.finetuner.to_disk(folder)
         settings = {
             "encoder_str": str(self.encoder)
         }
-        srsly.write_json("settings.json", settings)
+        srsly.write_json(folder / "settings.json", settings)
+        self.log(f"Model stored in {folder}.")
+    
+    def __repr__(self):
+        return f"SentenceModel(encoder={self.encoder}, heads={list(self.classifiers.keys())})"
 
     @classmethod
-    def from_disk(self, folder:Union[str, Path], encoder, spacy_model:str="en_core_web_sm", verbose:bool=False) -> "SentenceModel":
+    def from_disk(cls, folder:Union[str, Path], encoder, spacy_model:str="en_core_web_sm", verbose:bool=False) -> "SentenceModel":
         """
         Loads a `SentenceModel` from disk.
         
@@ -260,10 +264,10 @@ class SentenceModel:
         ```
         """
         folder = Path(folder)
-        keras_files = set(str(s) for s in folder.glob("*.keras"))
-        print(keras_files)
         models = {p.parts[-1].replace(".skops", ""): load(p, trusted=True) for p in folder.glob("*.skops")}
-        settings = srsly.read_json("settings.json")
+        if len(models) == 0:
+            raise ValueError(f"Did not find any `.skops` files in {folder}. Are you sure folder is correct?")
+        settings = srsly.read_json(folder / "settings.json")
         assert str(encoder) == settings["encoder_str"], f"The encoder at time of saving ({settings['encoder_str']}) differs from this one ({encoder})."
         smod = SentenceModel(
             encoder=encoder,
