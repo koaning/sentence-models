@@ -56,9 +56,12 @@ class SentenceModel:
         self.spacy_model = spacy_model if isinstance(spacy_model, Language) else spacy.load(spacy_model, disable=["ner", "lemmatizer", "tagger"])
         self.classifiers = {}
         self.verbose = verbose
-        if verbose:
-            console.log("SentenceModel initialized.")
         self.finetuner = finetuner
+        self.log("{self} initialized.")
+    
+    def log(self, msg):
+        if self.verbose:
+            console.log(msg)
     
     # TODO: add support for finetuners
     # def _generate_finetune_dataset(self, examples):
@@ -110,8 +113,7 @@ class SentenceModel:
                 mapper[ex.text] = {}
             for lab in ex.target.keys():
                 mapper[ex.text][lab] = ex.target[lab]
-        if self.verbose:
-            console.log(f"Found {len(mapper)} examples for {len(labels)} labels.")
+        self.log(f"Found {len(mapper)} examples for {len(labels)} labels.")
         return labels, mapper
 
     def learn(self, examples: List[Dict]) -> "SentenceModel":
@@ -146,8 +148,7 @@ class SentenceModel:
             labels = [mapper[text][lab] for text in texts]
             X = self.encode(texts)
             clf.fit(X, labels)
-            if self.verbose:
-                console.log(f"Trained classifier head for {lab=}")
+            self.log(f"Trained classifier head for {lab=}")
         return self
 
     def learn_from_disk(self, path: Path) -> "SentenceModel":
@@ -232,8 +233,7 @@ class SentenceModel:
         folder = Path(folder)
         folder.mkdir(exist_ok=True, parents=True)
         for name, clf in self.classifiers.items():
-            if self.verbose:
-                console.log(f"Writing to disk {folder}/{name}.skops")
+            self.log(f"Writing to disk {folder}/{name}.skops")
             dump(clf, folder / f"{name}.skops")
         if self.finetuner is not None:
             self.finetuner.to_disk(folder)
@@ -264,6 +264,7 @@ class SentenceModel:
         ```
         """
         folder = Path(folder)
+        self.log(f"Loading from {folder=}")
         models = {p.parts[-1].replace(".skops", ""): load(p, trusted=True) for p in folder.glob("*.skops")}
         if len(models) == 0:
             raise ValueError(f"Did not find any `.skops` files in {folder}. Are you sure folder is correct?")
