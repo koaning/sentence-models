@@ -1,3 +1,4 @@
+import datetime as dt 
 import srsly 
 from typing import List, Dict, Union
 from pathlib import Path
@@ -8,6 +9,7 @@ from sklearn.base import ClassifierMixin, clone, TransformerMixin
 from sklearn.linear_model import LogisticRegression
 from lazylines import read_jsonl, LazyLines
 from skops.io import dump, load
+
 
 from .types import Example
 from .util import console
@@ -59,7 +61,7 @@ class SentenceModel:
     
     def log(self, msg: str) -> None:
         if self.verbose:
-            console.log(msg)
+            console.print(f"[[bold green]{str(dt.datetime.now())[:19]}[/]] {msg}")
     
     # TODO: add support for finetuners
     # def _generate_finetune_dataset(self, examples):
@@ -146,7 +148,7 @@ class SentenceModel:
             labels = [mapper[text][lab] for text in texts]
             X = self.encode(texts)
             clf.fit(X, labels)
-            self.log(f"Trained classifier head for {lab=}")
+            self.log(f"Trained head for {lab=} on {len(texts)} examples.")
         return self
 
     def learn_from_disk(self, path: Path) -> "SentenceModel":
