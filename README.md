@@ -1,6 +1,6 @@
 <img src="docs/highlight.png" width="125" height="125" align="right" />
 
-# Sentence Models
+### Sentence Models
 
 > A different take on textcat.
 
